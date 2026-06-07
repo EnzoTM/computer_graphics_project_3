@@ -1,4 +1,4 @@
-# Projeto 2: Cenário Submarino 3D
+# Projeto 3: Iluminação Phong
 
 **SCC0250, Computação Gráfica · 2026.1 · ICMC-USP**
 
@@ -6,60 +6,46 @@ Feito por:
 **Enzo Tonon Morente - 14568476**
 **Cauê Paiva Lira - 14675416**
 
-![Capa: vista isométrica do cenário](build/report/hero.png)
-
 ---
 
 ## 1. Visão geral
 
-Cenário 3D interativo em **OpenGL 3.3 core profile** que coloca o
-usuário, em câmera de primeira pessoa, dentro e ao redor de um
-submarino apoiado em um leito de areia. O cenário é dividido em duas
-zonas:
+Extensão do Projeto 2: o cenário submarino 3D recebe iluminação **Phong completa** (ambiente + difusa + especular) implementada em GLSL 3.30 core, sem nenhuma função de pipeline fixo (`glLight`, `glMaterial`, etc.).
 
-- **Exterior**: submarino completo, leito de areia que se estende
-  até o horizonte, *skydome* panorâmico oceânico, decoração
-  procedural (corais, pedras e algas) cobrindo toda a área visível,
-  cardume de peixes-palhaço em alturas variadas, uma orca e uma
-  beluga gigante.
-- **Interior**: corredor metálico que segue a curva real do casco
-  ao longo de todo o comprimento da popa à proa, com cadeira
-  *sci-fi* do piloto, estação de monitoramento com tela
-  holográfica, joystick UAV em pé e console *sci-fi* de comando na
-  popa.
+A cena continua dividida em duas zonas:
 
-Pontos centrais da implementação:
+- **Exterior**: submarino, leito de areia, *skydome* oceânico, decoração procedural (corais, pedras e algas), cardume de peixes-palhaço, orca, beluga — iluminados por **luz direcional subaquática** (simula sol filtrado pela água) e pela **medusa bioluminescente** (fonte de luz móvel).
+- **Interior**: corredor metálico com cadeira *sci-fi*, estação de monitoramento, mesa de controle, joystick UAV e lâmpada industrial — iluminados pela **lâmpada no teto** e pelo **monitor da estação de trabalho**.
+
+A separação interior/exterior é implementada no shader via `uHullMode` + `gl_FrontFacing`: faces externas do casco reagem apenas à medusa; faces internas reagem apenas à lâmpada e ao monitor.
 
 | | |
 |---|---|
-| Linguagem | Python 3.12, importante respeitar a versão, pois certas depedências não funcionam ainda no Python 3.13+ | 
-| Engine | OpenGL 3.3 core, **sem nenhuma chamada de pipeline fixo** (sem `glRotate`/`glTranslate`/`glScale`/`glBegin/End`/`glPushMatrix`) |
-| Matrizes | Tudo montado à mão em `numpy` e enviado como `mat4` uniform aos shaders |
-| Iluminação | Pipeline *unlit*: cor por pixel = amostra de textura difusa |
-| Modelos `.obj` | **11** modelos importados, todos texturizados, vários com múltiplos materiais (multi-textura) |
-| Transformações interativas | **Escala** (orca), **rotação** (beluga) e **translação** (cadeira), uma em cada modelo, todas controladas pelo teclado |
-| Linhas de código | ~2 420 linhas de Python no runtime, ~63 linhas de GLSL, ~1 300 linhas no pipeline de assets |
+| Linguagem | Python 3.12 |
+| Engine | OpenGL 3.3 core profile, **sem pipeline fixo** |
+| Matrizes | `numpy` + `mat4` uniforms nos shaders |
+| Iluminação | **Phong** (ambiente + difusa + especular) em GLSL — `phong_ext` (exterior) e `phong_int` (interior) |
+| Modelos `.obj` | **13** modelos importados, todos texturizados, vários com múltiplos materiais |
+| Parâmetros de material | `ka`, `kd`, `ks`, `shininess` definidos por objeto no código, **não lidos dos `.mtl`** |
 
 ---
 
 ## 2. Como executar
 
 ```bash
-git clone https://github.com/caue-paiva/computer_graphics_project_2 # clonar o projeto 
-cd computer_graphics_project_2 # entrar no diretório do projeto
-python -m venv .venv # criar ambiente virtual
+git clone <url-do-repositório>
+cd projeto_3
+python -m venv .venv
 source .venv/bin/activate              # Windows: .venv\Scripts\activate
-pip install -r requirements.txt   # instalar bibliotecas
-python src/main.py  # executar o projeto
+pip install -r requirements.txt
+python src/main.py
 ```
 
-Testado em **macOS 25.3** (Apple Silicon) e **Ubuntu 22.04** com
-Python **3.12**. Os assets já vêm pré-construídos em
-`assets/modelos/` e `assets/skybox/`, então não é necessário rodar o
-pipeline de build para executar.
+Testado em **macOS 25.3** (Apple Silicon) e **Ubuntu 22.04** com Python **3.12**.
 
-Caso o seu sistema tenha versões do python 3.13+, sem suporte para as dependências do projeto, é possível usar o pyenv para baixar outras versões do Python. O pyenv é uma ferramenta que permite instalar e gerenciar múltiplas versões do Python no mesmo sistema, facilitando a troca entre elas conforme a necessidade de cada projeto. Para instruções de instalação e uso,
-consulte este guia [prático](https://realpython.com/intro-to-pyenv/).
+> **Importante:** usar Python 3.12 especificamente. O `assimp_py` (usado no pipeline de build offline em `tools/`) ainda não tem *wheel* para 3.13+. O runtime (`src/`) só depende de PyOpenGL, GLFW, numpy e Pillow — mas manter 3.12 evita surpresas.
+>
+> Para instalar outra versão do Python sem afetar o sistema, use o [pyenv](https://realpython.com/intro-to-pyenv/).
 
 ---
 
@@ -67,228 +53,188 @@ consulte este guia [prático](https://realpython.com/intro-to-pyenv/).
 
 | Tecla | Ação |
 |---|---|
-| `W` `A` `S` `D` | Movimento horizontal (FPS, projetado no plano XZ) |
-| `Espaço` / `Shift` | Subir / descer (movimento vertical absoluto) |
-| Mouse | Olhar em volta (yaw + pitch, com clamp para evitar *gimbal lock*) |
-| `]` / `[` | **Escala** da **orca**: aumentar / diminuir uniformemente (clamp de 0.3× a 3.0×) |
-| `R` / `Q` | **Rotação** da **beluga** em torno do eixo vertical (sentido horário / anti-horário, passo de 30°, com auto-repeat) |
-| `T` / `G` | **Translação** da **cadeira** ao longo de Z (frente / trás, passo de 0.20 m, clamp ±1 m) |
-| `F` / `H` | **Translação** da **cadeira** ao longo de X (lado a lado, passo de 0.20 m, clamp ±1 m) |
-| `P` | Alternar modo *wireframe* |
+| `W` `A` `S` `D` | Movimento horizontal da câmera (FPS) |
+| `Espaço` / `Shift` | Subir / descer |
+| `Mouse` | Olhar em volta (yaw + pitch) |
+| `↑` `↓` `←` `→` | Mover a **medusa** (fonte de luz exterior) em XZ |
+| `1` | Toggle da luz da medusa (exterior) |
+| `2` | Toggle da lâmpada (interior) |
+| `3` | Toggle do monitor (interior) |
+| `+` / `-` | Aumentar / diminuir intensidade **ambiente** (passo 0.05, range 0–1) |
+| `]` / `[` | Aumentar / diminuir componente **difusa** (passo 0.1, range 0–2) |
+| `R` / `T` | Aumentar / diminuir componente **especular** (passo 0.1, range 0–2) |
 | `Esc` | Sair |
 
-As três transformações exigidas pelo edital (escala, rotação e
-translação) estão aplicadas em **modelos diferentes** (orca, beluga
-e cadeira respectivamente) e cada uma é acionada por **teclas
-independentes**, exatamente como pede o requisito 7.
+> Os controles de P2 (escala da orca, rotação da beluga, translação da cadeira, wireframe) foram **removidos**, conforme o Requisito 8 do edital.
 
 ---
 
-## 4. Cenário externo
+## 4. Sistema de iluminação
 
-### 4.1 Vista panorâmica
+### 4.1 Dois shaders Phong
 
-O submarino fica no centro da cena. A decoração é **procedural**:
-um *grid* 40×40 com *jitter* aleatório posiciona corais, pedras e
-algas pelo leito todo, com uma *exclusion box* em volta do casco
-para nada nascer dentro/sob ele. As contagens fixas por categoria
-(72 corais + 90 pedras + 88 algas + 92 peixes-palhaço) são
-determinadas por uma RNG semeada, então cada execução produz
-**a mesma cena**, garantindo reprodutibilidade.
+O projeto usa dois programas GLSL separados para isolar completamente as iluminações:
 
-![Vista isométrica do submarino com decoração e orca](build/report/exterior_iso_ne.png)
+| Shader | Usado para | Fontes de luz |
+|---|---|---|
+| `phong_ext` | Exterior (chão, decoração, animais, medusa) | Luz direcional da água + medusa (ponto) |
+| `phong_int` | Interior (casco do submarino, piso metálico, mobília) | Lâmpada (ponto, com atenuação) + monitor (ponto, sem atenuação) |
 
-### 4.2 Vista superior (densidade da decoração)
+O **skydome** continua com seu shader próprio (`skydome.vert/frag`), inalterado.
 
-![Vista de cima mostrando densidade da decoração](build/report/exterior_topdown.png)
+### 4.2 Modelo Phong por fragmento
 
-### 4.3 Silhueta lateral do submarino + skydome
+Cada fragmento calcula:
 
-O céu é um *skydome* esférico panorâmico (textura
-equirretangular) ancorado à câmera, ou seja, ele acompanha o
-jogador, dando a impressão de um oceano infinito.
+```
+resultado = Ka * I_ambiente * texColor
+          + Kd * diff_mult * max(dot(N, L), 0) * lightColor * texColor    (difuso)
+          + Ks * spec_mult * pow(max(dot(V, R), 0), shininess) * lightColor  (especular)
+```
 
-![Silhueta lateral do submarino contra o skydome](build/report/exterior_low_side.png)
+Onde `N` é a normal do vértice transformada pela **normal matrix** (`mat3(transpose(inverse(uModel)))`), `L` é a direção à fonte, `V` a direção à câmera e `R` o vetor refletido.
 
-### 4.4 Decoração procedural em close
+### 4.3 Separação exterior/interior no casco
 
-Pedras com texturização realista, corais com geometria volumosa e
-algas com folhagem semi-transparente. Os peixes-palhaço passam ao
-fundo.
+O submarino é uma malha única — as mesmas faces formam tanto a parede externa quanto a parede interna da cabine. Para separar a iluminação:
 
-![Close em decoração procedural](build/report/decor_close.png)
+- O casco é renderizado com `uHullMode = 1`
+- `gl_FrontFacing == true` → face externa → recebe **apenas** a medusa
+- `gl_FrontFacing == false` → face interna → normal invertida → recebe **lâmpada + monitor**
+- Toda a mobília e pisos usam `uHullMode = 0` e recebem lâmpada + monitor diretamente
 
----
+Isso garante que a medusa nunca "vaza" para o interior, e que a lâmpada nunca ilumina o exterior.
 
-## 5. Animais interativos
+### 4.4 Luz direcional da água (exterior)
 
-### 5.1 Orca: escala via teclado (`]` / `[`)
+Em vez de múltiplos pontos de luz simulando a superfície do oceano, o shader usa uma **luz direcional** (vetor constante `(0.15, 1.0, 0.05)`, normalizado no shader). Matematicamente equivale a infinitas fontes paralelas da mesma direção — ilumina todo o exterior uniformemente com um tom azul-esverdeado subaquático, como a luz solar filtrada pela água.
 
-A orca aceita ampliação e redução discreta da sua escala uniforme,
-com *clamp* em 0.3× a 3.0×. A transformação é aplicada como uma
-matriz `S` extra antes da `R`·`T`, sem afetar nenhum outro objeto
-da cena.
+### 4.5 Atenuação
 
-![Close da orca](build/report/orca_close.png)
+- **Lâmpada**: atenuação quadrática `1 / (1 + 0.025·d + 0.003·d²)` — alcance ~20 m, cai gradualmente com a distância
+- **Monitor**: sem atenuação (`att = 1.0`) — funciona como tela que preenche o ambiente inteiro com luz azul difusa
+- **Medusa**: sem atenuação no exterior — bioluminescência como boost local sobre a luz direcional
 
-### 5.2 Beluga: rotação via teclado (`R` / `Q`)
+### 4.6 Parâmetros de material por objeto
 
-A beluga aceita rotação em torno do eixo vertical em qualquer
-sentido. Ambas as teclas têm *auto-repeat* enquanto seguradas
-(rate-limited a ~6 passos/seg para uma sensação contínua sem
-"pular" o ângulo). Internamente o yaw é acumulado em radianos e
-montado como uma `R_y`(θ) padrão.
+Cada `Object3D` define seus próprios `ka`, `kd`, `ks` e `shininess`, enviados como uniforms ao shader a cada drawcall. Nenhum parâmetro vem dos arquivos `.mtl`.
 
-![Close da beluga](build/report/beluga_close.png)
-
-### 5.3 Cardume de peixes-palhaço
-
-92 peixes posicionados em um *grid* procedural, com altura
-aleatória variando entre 1.5 m e 9 m sobre o leito. Cada um tem 5
-materiais distintos (*body*, *fins*, *eye*, *teeth*, *stripes*) que
-demonstram o suporte multi-textura do *loader*.
-
-![Cardume de peixes-palhaço](build/report/school_close.png)
+| Objeto | ka | kd | ks | shininess |
+|---|---|---|---|---|
+| submarino | 0.2 | 0.7 | 0.5 | 64 |
+| orca / beluga | 0.3 | 0.8 | 0.2 | 16 |
+| peixe-palhaço | 0.3 | 0.8 | 0.1 | 8 |
+| coral / alga | 0.3 | 0.7 | 0.1 | 8 |
+| pedra | 0.2 | 0.6 | 0.1 | 8 |
+| medusa | 0.4 | 0.6 | 0.5 | 32 |
+| cadeira / estação | 0.2 | 0.6 | 0.5–0.6 | 32–48 |
+| mesa | 0.2 | 0.5 | 0.7 | 64 |
+| joystick | 0.2 | 0.6 | 0.8 | 128 |
+| lâmpada | 0.3 | 0.5 | 0.9 | 128 |
 
 ---
 
-## 6. Cenário interno (cabine do piloto)
+## 5. Modelos 3D
 
-### 6.1 POV do piloto: joystick + estação
+O projeto usa **13 modelos** `.obj` texturizados:
 
-Câmera dentro do casco, atrás da cadeira, olhando para a proa. O
-piso metálico, o joystick UAV em primeiro plano e a tela
-holográfica azulada da estação de monitoramento são todos modelos
-`.obj` separados, posicionados manualmente segundo seus *AABBs*
-para alinhamento perfeito.
+| Modelo | Zona | Materiais | Papel |
+|---|---|---|---|
+| `submarino` | Interior (casco) | 1 | Delimita os dois ambientes; casco renderizado com `uHullMode=1` |
+| `coral` | Exterior | 1 | Decoração procedural do leito |
+| `pedra` | Exterior | 1 | Decoração procedural do leito |
+| `alga` | Exterior | 1 | Decoração procedural do leito |
+| `peixe_palhaco` | Exterior | 5 | Cardume procedural em alturas variadas |
+| `orca` | Exterior | 1 | Animal de grande porte |
+| `beluga` | Exterior | 1 | Animal de grande porte |
+| `jelly_fish` | Exterior | 1 | **Fonte de luz exterior**, movível pelas setas |
+| `cadeira` | Interior | 13 | Cadeira do piloto |
+| `estacao` | Interior | 2 | Estação de monitoramento |
+| `mesa` | Interior | 10 | Console *sci-fi* na popa |
+| `joystick_2` | Interior | 11 | Joystick UAV |
+| `lamp` | Interior | 4 | **Fonte de luz interior** (lâmpada no teto) |
 
-![POV do piloto](build/report/interior_pilot_pov.png)
-
-### 6.2 Cadeira do piloto: translação via teclado (`T` / `G` / `F` / `H`)
-
-A cadeira tem **13 sub-malhas** (estofamento, frame metálico, base,
-telas, parafusos, etc.), todas lidas do `.mtl` original e
-renderizadas com texturas independentes. Ela é o objeto que cumpre
-o requisito de **translação interativa** do edital: as teclas
-`T`/`G` deslocam a cadeira no eixo Z (frente/trás) e `F`/`H` no eixo
-X (lado a lado), em passos de 0.20 m, com *clamp* em ±1 m em torno
-da posição base, o suficiente para o piloto ajustar o assento
-sem ele atravessar o casco.
-
-Implementação em `Scene.translate_chair_step(dx, dz)`: a posição
-base é guardada em `chair_base_translation` e o deslocamento
-acumulado fica em `SceneState.chair_translate_x/z`; a cada chamada
-recalculamos `chair_obj.translation = base + acumulado`, o que vira
-uma matriz `T` no shader sem afetar nenhum outro objeto.
-
-![Cabine vista de 3/4](build/report/interior_chair.png)
-
-### 6.3 Console *sci-fi* na popa
-
-O console (`mesa.obj`) é o modelo mais complexo do projeto: **10
-materiais distintos** (computador, tela, *main mat A/B*, *yellow
-mat*, *blue glow*, *black reflection*, *globe*, etc.). É uma
-demonstração explícita do requisito de "múltiplas texturas por
-modelo".
-
-![Console sci-fi na popa](build/report/interior_back.png)
+A decoração exterior é **procedural**: grid 40×40 com *jitter* aleatório e semente fixa (`seed=42`), garantindo a mesma cena a cada execução.
 
 ---
 
-## 7. Modo wireframe (`P`)
+## 6. Cenário externo
 
-Tecla única para alternar `glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)`.
-Mostra que toda a geometria do projeto, incluindo o *skydome*, é
-formada por triângulos reais (sem nenhum *billboard* ou *imposter*
-disfarçado).
+O exterior abrange um leito de areia de 400 m × 400 m (textura 4K *tiled* 40×), skydome esférico de raio 250 m ancorado à câmera, e decoração procedural cobrindo toda a área visível com exclusão em volta do casco.
 
-![Modo wireframe](build/report/wireframe.png)
+A iluminação vem de duas fontes: a **luz direcional da água** (sempre ativa, cobre tudo uniformemente) e a **medusa** (bioluminescente, movível, funciona como boost local). As setas movem a medusa no plano XZ em passos de 0.5 m; a tecla `1` a desliga/liga.
+
+---
+
+## 7. Cenário interno
+
+O interior segue a curvatura real do casco: `make_hull_following_floor` lê o `.obj` do submarino, determina a largura do casco a cada fatia Z e gera um piso de metal escovado que acompanha a forma interna da popa à proa.
+
+A iluminação é dupla:
+- **Lâmpada** (tecla `2`): luz branco-quente `(1.0, 0.95, 0.8)` no teto `(0, 8, 1)`, com atenuação quadrática suave
+- **Monitor** (tecla `3`): luz azul `(0.2, 0.5, 1.0)` na estação de trabalho `(0, 4.2, 19.5)`, sem atenuação — preenche o ambiente com brilho de tela
 
 ---
 
 ## 8. Atendimento ao edital
 
-A tabela abaixo lista os **12 requisitos** do edital e onde cada um
-é atendido no projeto.
-
-| # | Requisito | Onde está atendido | Evidência |
-|---|---|---|---|
-| 1 | Cenário com **ambiente interno + externo** e objetivo coerente | Submarino delimita os dois ambientes: exterior é o leito oceânico ao redor; interior é a cabine pressurizada do piloto | §4 (externo) e §6 (interno) |
-| 2 | **≥ 6 modelos** `.obj` 3D com textura, sem repetir os de aula | **11 modelos** em `assets/modelos/`: submarino, coral, pedra, alga, cadeira, estação, mesa, joystick_2, peixe-palhaço, orca, beluga (todos baixados de free3d / CGTrader / BlendSwap) | seções 4 a 6 |
-| 3 | **≥ 3 modelos no interno + ≥ 3 modelos no externo** (sem contar o delimitador) | **Internos (4):** cadeira, estação, mesa, joystick_2. **Externos (6):** coral, pedra, alga, peixe-palhaço, orca, beluga. O submarino é o delimitador e não é contado | §4, §6 |
-| 4 | Cada modelo de um **`.obj` próprio** (sem cenas pré-montadas) | Cada um dos 11 modelos vem de seu próprio arquivo `.obj` em `assets/modelos/<nome>/<nome>.obj`; o pipeline de build (`tools/build_assets.py`) garante que múltiplos objetos em um único `.obj` fonte sejam segmentados | (todos os modelos) |
-| 5 | Modelos **escalados de forma coerente** com o mundo real | Cada objeto é escalado a partir do seu *AABB* nativo para uma medida em metros plausível: submarino ≈ 47 m × 9 m × 17 m, cadeira ≈ 1.6 m de altura, beluga ≈ 5 m, peixes-palhaço ≈ 0.2 m | §4 a §6 |
-| 6 | **Pisos diferentes** no interno e no externo | Externo: chão de areia 4K (`coast_sand_05_diff_4k.jpg`, 400 m × 400 m, *tiled* 40×). Interno: piso de **metal escovado** (`metal_brushed.jpg`) que segue a curvatura real do casco do submarino da popa à proa (`make_hull_following_floor` em `scene.py`) | §6.1 e §6.3 (piso metálico claro debaixo dos modelos) |
-| 7 | **Escala, rotação e translação** aplicadas a **modelos diferentes**, cada uma com tecla independente | **Escala** na orca (`]` / `[`) · **Rotação** na beluga (`R` / `Q`) · **Translação** na cadeira (`T`/`G`/`F`/`H`) | §5.1, §5.2, §6.2 |
-| 8 | **Skybox** com textura | *Skydome* esférico de raio 250 m com textura panorâmica equirretangular oceânica, ancorado à câmera (`make_sky_sphere` + `shaders/skydome.{vert,frag}`) | §4.3 |
-| 9 | **Restringir a exploração** à borda do céu / terreno | `Camera.clamp()` aplica `bounds_xz = (-100, 100)` e `bounds_y = (0.4, 60)` a cada frame, mantendo a câmera bem dentro do raio do *skydome* (250 m) e acima do chão (Y = 0) | `src/camera.py` linhas 133-142 |
-| 10 | **Wireframe** alternável com `P` | `_on_key` em `src/main.py` alterna `glPolygonMode(GL_FRONT_AND_BACK, GL_LINE / GL_FILL)` ao detectar `KEY_P` | §7 |
-| 11 | Modelos importados de **arquivos Wavefront `.obj`** | Loader manual em `src/model.py` (parser de `v / vt / vn / f / usemtl / mtllib`); pipeline em `tools/build_assets.py` converte `.fbx` / `.blend` originais para `.obj` quando preciso | (todos os modelos) |
-| 12 | **Sem iluminação dinâmica** | `shaders/basic.frag` é `FragColor = texture(uDiffuse, vUV)` puro, sem `normal`, sem `lightDir`, sem cálculo de Phong/Blinn | (cor chapada visível em todas as imagens) |
-
-A presença de **multi-material por modelo** também é demonstrada
-explicitamente em `cadeira.obj` (13 sub-malhas), `joystick_2.obj`
-(11), `mesa.obj` (10), `peixe_palhaco.obj` (5) e `estacao.obj` (2).
-O loader em `src/model.py` parseia `usemtl` e emite uma
-`glDrawElements` por material.
+| # | Requisito | Como está implementado |
+|---|---|---|
+| 1 | Objeto externo com translação = fonte de luz exterior que **só afeta o exterior** | Medusa (`jelly_fish.obj`) é movida pelas setas; sua posição vira `uLightPos` no `phong_ext`. O `phong_int` recebe a posição da medusa como `uLight3` mas só a aplica na face externa do casco (`gl_FrontFacing && uHullMode==1`) |
+| 2 | Dois objetos internos como fontes de luz de **cores diferentes** que **só afetam o interior** | Lâmpada (branco-quente) e monitor (azul) em `phong_int`; objetos exteriores usam `phong_ext` que não declara essas luzes |
+| 3 | Toggle independente de cada luz por teclado | `1` = medusa, `2` = lâmpada, `3` = monitor; cada um altera um campo de `LightState` que é enviado como `int` uniform (`uLightOn`) ao shader |
+| 4 | Incrementar/decrementar luz ambiente | `+`/`-`: `lights.ambient` ±0.05, clampado em [0, 1], enviado como `uAmbientIntensity` |
+| 5 | Incrementar/decrementar reflexão difusa | `]`/`[`: `lights.diffuse_mult` ±0.1, clampado em [0, 2], enviado como `uDiffuseMult` |
+| 6 | Incrementar/decrementar reflexão especular | `R`/`T`: `lights.specular_mult` ±0.1, clampado em [0, 2], enviado como `uSpecularMult` |
+| 7 | Cada objeto com **parâmetros próprios** de iluminação (não dos `.mtl`) | `Object3D` tem campos `ka`, `kd`, `ks`, `shininess`; enviados como uniforms antes de cada `draw_model()`; valores na tabela da §4.6 |
+| 8 | Eventos de teclado do P2 **não precisam** mais existir | Controles de escala/rotação/translação/wireframe removidos de `main.py` |
 
 ---
 
-## 9. Estrutura técnica resumida
+## 9. Estrutura do projeto
 
 ```
-computer_graphics_project_2/
-├── src/                  ← runtime (~2 420 linhas de Python)
-│   ├── main.py             janela GLFW + input + loop principal
-│   ├── camera.py           câmera FPS (yaw/pitch + clamp + bounds)
-│   ├── utils.py            matrizes 4×4 (translate/rotate/scale/perspective/look_at)
-│   ├── model.py            loader de .obj multi-material + draw_model
-│   ├── shader.py           wrapper compile/link + cache de uniforms
-│   ├── texture.py          PIL → glTexImage2D
-│   └── scene.py            montagem da cena, decoração procedural, animação
+projeto_3/
+├── src/
+│   ├── main.py        janela GLFW + input + loop principal
+│   ├── camera.py      câmera FPS (yaw/pitch + clamp de bounds) — intocado do P2
+│   ├── utils.py       matrizes 4×4 (translate/rotate/scale/perspective/look_at) — intocado
+│   ├── model.py       loader .obj: parser vn, VBO 8 floats/vértice [xyz·uv·nxyz], multi-material
+│   ├── shader.py      compile/link + cache de uniforms — intocado
+│   ├── texture.py     PIL → glTexImage2D — intocado
+│   └── scene.py       montagem da cena, LightState, split ext/int, decoração procedural
 │
-├── shaders/              ← GLSL 330 core (~63 linhas)
-│   ├── basic.{vert,frag}   pipeline padrão (textura difusa)
-│   └── skydome.{vert,frag} skybox panorâmico
+├── shaders/
+│   ├── phong_ext.vert / phong_ext.frag   exterior: luz direcional da água + medusa
+│   ├── phong_int.vert / phong_int.frag   interior: lâmpada + monitor + hull mode
+│   └── skydome.vert  / skydome.frag      skydome panorâmico — intocado do P2
 │
 ├── assets/
-│   ├── modelos/            11 .obj + .mtl + texturas associadas
-│   └── skybox/             panorama oceânico equirretangular
+│   ├── modelos/       13 pastas com .obj + .mtl + texturas
+│   ├── texturas/      chão_externo (areia 4K), interior (metal escovado), skybox
+│   └── skybox/        panorama oceânico equirretangular
 │
-└── tools/                ← offline (~1 300 linhas de Python)
-    └── build_assets.py     pipeline de conversão .fbx/.blend/.obj brutos → assets/
+└── tools/
+    └── build_assets.py  pipeline offline (.fbx/.blend → .obj) — não necessário para executar
 ```
 
 ### Fluxo de um frame
 
-1. `main.py` lê input do GLFW e atualiza estado da `Camera`.
-2. `Scene.draw(view, proj)` percorre a lista de `Object3D`,
-   monta a matriz `M = T · R · S` para cada um, envia
-   `model/view/proj` como uniforms para o shader e chama
-   `draw_model`, que faz um `glDrawElements` por sub-malha
-   (uma por material).
-3. O *skydome* é desenhado primeiro com `depthMask = false` para
-   ficar atrás de tudo.
+1. **Input**: GLFW notifica teclas/mouse → `Camera` e `LightState` atualizados
+2. **Skydome**: desenhado com `depthMask = false`, ancorado à posição da câmera
+3. **Exterior** (`phong_ext`): chão de areia + todos os `ext_objects`; uniforms de luz direcional da água e medusa enviados uma vez antes do loop
+4. **Interior** (`phong_int`): piso metálico + todos os `int_objects`; para o casco do submarino `uHullMode=1`, para os demais `uHullMode=0`
+5. **Swap**: `glfw.swap_buffers()`
 
-### Como o pipeline lida com modelos sem textura
+### VBO e normais
 
-Modelos cuja fonte trazia apenas cores difusas (sem mapa) são
-processados pelo `build_assets.py`, que **gera proceduralmente**
-um PNG sólido de 16×16 px para cada material e reescreve o `.mtl`
-para apontar para esse PNG. Assim, **todos os 11 modelos são
-texturizados** no runtime, atendendo à exigência mesmo quando o
-download original era cor-pura.
+O `model.py` lê `vn` do `.obj` e armazena **8 floats por vértice**: `[x, y, z, u, v, nx, ny, nz]`. A normal é transformada no vertex shader pela *normal matrix* `mat3(transpose(inverse(uModel)))`, que preserva a direção correta mesmo com escalas não-uniformes. Primitivas geradas em runtime (`make_floor`, `make_hull_following_floor`) usam normal `(0, 1, 0)` explícita.
 
 ---
 
-## 10. Observações finais
+## 10. Observações técnicas
 
-- O projeto usa **Python 3.12 especificamente** porque o
-  `assimp_py` (responsável por ler `.fbx` / `.blend` no pipeline
-  de build offline) ainda não tem *wheel* para 3.13+. O runtime em
-  si só depende de **PyOpenGL**, **GLFW**, **numpy** e **Pillow**,
-  todos compatíveis com versões mais novas.
-- Todos os arquivos `.py` do diretório `src/` estão extensivamente
-  comentados em PT-BR, explicando linha a linha o que cada bloco
-  faz e por quê (especial atenção a `scene.py`, que documenta os
-  *AABBs* e os offsets de cada modelo).
+- **Winding order do casco**: os triângulos do submarino têm winding tal que a face geométrica "externa" é a `gl_FrontFacing == true`. Não invertemos as normais por `!gl_FrontFacing` nos objetos de mobília/piso — isso quebraria os pisos procedurais cujos vértices têm normal `(0,1,0)` mas winding invertido.
+- **Monitor sem atenuação**: com atenuação quadrática padrão a ~29 m de distância, a contribuição do monitor caia a menos de 2% — imperceptível. A solução foi usar `att = 1.0` para o monitor, mantendo atenuação apenas na lâmpada.
+- **Luz direcional vs. múltiplos pontos**: a luz da água usa um único vetor de direção no shader, o que é matematicamente equivalente a infinitos pontos de luz paralelos e computacionalmente mais eficiente do que N fontes pontuais.
+- **Python 3.12**: versão obrigatória. O runtime depende apenas de PyOpenGL, GLFW, numpy e Pillow.

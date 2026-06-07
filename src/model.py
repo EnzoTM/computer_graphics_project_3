@@ -1,12 +1,11 @@
 """Wavefront .obj loader + GPU upload, with multi-material support.
 
-Parses position+UV (`v`, `vt`, `f`) and reads `mtllib`/`usemtl`. Each
-`usemtl` switch starts a new sub-mesh that draws with its own diffuse
+Parses position+UV+normal (`v`, `vt`, `vn`, `f`) and reads `mtllib`/`usemtl`.
+Each `usemtl` switch starts a new sub-mesh that draws with its own diffuse
 texture. Faces with more than 3 vertices are fan-triangulated.
 
-Each unique (v_idx, vt_idx) pair becomes one GPU vertex (deduplicated
-via a dict). Normals are read from `vn` lines but ignored at draw time
-because this assignment forbids lighting.
+Each unique (v_idx, vt_idx, vn_idx) triplet becomes one GPU vertex
+(deduplicated via a dict). Vertex layout: [x, y, z, u, v, nx, ny, nz].
 """
 
 from __future__ import annotations
@@ -62,7 +61,8 @@ def _parse_mtl(mtl_path: Path) -> dict[str, _Material]:
             current = _Material(name=parts[1].strip() if len(parts) > 1 else "")
             materials[current.name] = current
         elif head == "map_kd" and current is not None and len(parts) > 1:
-            current.diffuse_map = parts[1].strip()
+            # Handle optional flags like "-s 3 3 3" before the filename.
+            current.diffuse_map = parts[1].strip().split()[-1]
     return materials
 
 
@@ -84,7 +84,7 @@ class SubMesh:
 class Model:
     """A whole imported model.
 
-    A single VAO holds positions+UVs interleaved; the EBO is split into
+    A single VAO holds positions+UVs+normals interleaved; the EBO is split into
     one or more `SubMesh` slices. We bind once and issue a glDrawElements
     per submesh with its own texture.
     """
@@ -97,12 +97,10 @@ class Model:
         obj_p = Path(obj_path)
         verts: list[tuple[float, float, float]] = []
         uvs: list[tuple[float, float]] = []
+        normals: list[tuple[float, float, float]] = []
         materials: dict[str, _Material] = {}
 
-        # `material_runs` is a list of (material_name, [face, face, ...]) where
-        # each face is a list of (v_idx, vt_idx) pairs. We start with an
-        # implicit "default" run for files that have no usemtl directive.
-        material_runs: list[tuple[str | None, list[list[tuple[int, int]]]]] = [(None, [])]
+        material_runs: list[tuple[str | None, list[list[tuple[int, int, int]]]]] = [(None, [])]
 
         for raw in obj_p.read_text(errors="ignore").splitlines():
             line = raw.strip()
@@ -113,54 +111,58 @@ class Model:
                 verts.append((float(rest[0]), float(rest[1]), float(rest[2])))
             elif head == "vt" and len(rest) >= 2:
                 uvs.append((float(rest[0]), float(rest[1])))
+            elif head == "vn" and len(rest) >= 3:
+                normals.append((float(rest[0]), float(rest[1]), float(rest[2])))
             elif head == "mtllib" and rest:
-                # File name may itself contain spaces.
                 mtl_ref = " ".join(rest)
                 materials.update(_parse_mtl(obj_p.parent / mtl_ref))
             elif head == "usemtl" and rest:
-                # Material names can contain spaces (e.g. 'Main mat A'),
-                # so rejoin every token after `usemtl`.
                 mat_name = " ".join(rest)
                 if material_runs[-1][0] is None and not material_runs[-1][1]:
-                    # First usemtl: replace the default empty bucket.
                     material_runs[-1] = (mat_name, [])
                 else:
                     material_runs.append((mat_name, []))
             elif head == "f" and len(rest) >= 3:
-                tokens: list[tuple[int, int]] = []
+                tokens: list[tuple[int, int, int]] = []
                 for tok in rest:
                     parts = tok.split("/")
                     vi = int(parts[0])
                     ti = int(parts[1]) if len(parts) > 1 and parts[1] else 0
+                    ni = int(parts[2]) if len(parts) > 2 and parts[2] else 0
                     if vi < 0:
                         vi = len(verts) + vi + 1
                     if ti < 0:
                         ti = len(uvs) + ti + 1
-                    tokens.append((vi, ti))
-                # Fan-triangulate n-gons.
+                    if ni < 0:
+                        ni = len(normals) + ni + 1
+                    tokens.append((vi, ti, ni))
                 for i in range(1, len(tokens) - 1):
                     material_runs[-1][1].append([tokens[0], tokens[i], tokens[i + 1]])
 
-        # Deduplicate (v_idx, vt_idx) pairs into GPU vertices.
+        # Deduplicate (v_idx, vt_idx, vn_idx) triplets into GPU vertices.
         gpu_verts: list[float] = []
-        index_map: dict[tuple[int, int], int] = {}
+        index_map: dict[tuple[int, int, int], int] = {}
         all_indices: list[int] = []
-        submesh_specs: list[tuple[str | None, int, int]] = []  # (mat, offset, count)
+        submesh_specs: list[tuple[str | None, int, int]] = []
 
         for mat_name, faces in material_runs:
             if not faces:
                 continue
             offset = len(all_indices)
             for tri in faces:
-                for vi, ti in tri:
-                    key = (vi, ti)
+                for vi, ti, ni in tri:
+                    key = (vi, ti, ni)
                     if key not in index_map:
                         px, py, pz = verts[vi - 1]
                         if ti and ti - 1 < len(uvs):
                             u, v = uvs[ti - 1]
                         else:
                             u, v = 0.0, 0.0
-                        gpu_verts.extend([px, py, pz, u, v])
+                        if ni and ni - 1 < len(normals):
+                            nx_v, ny_v, nz_v = normals[ni - 1]
+                        else:
+                            nx_v, ny_v, nz_v = 0.0, 1.0, 0.0
+                        gpu_verts.extend([px, py, pz, u, v, nx_v, ny_v, nz_v])
                         index_map[key] = len(index_map)
                     all_indices.append(index_map[key])
             submesh_specs.append((mat_name, offset, len(all_indices) - offset))
@@ -168,7 +170,6 @@ class Model:
         if not all_indices:
             raise RuntimeError(f"{obj_p}: no faces parsed")
 
-        # Upload to a single VAO/VBO/EBO.
         vao = int(glGenVertexArrays(1))
         vbo = int(glGenBuffers(1))
         ebo = int(glGenBuffers(1))
@@ -182,14 +183,15 @@ class Model:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, ebo_data.nbytes, ebo_data, GL_STATIC_DRAW)
 
-        stride = 5 * 4  # x, y, z, u, v
+        stride = 8 * 4  # x, y, z, u, v, nx, ny, nz
         glEnableVertexAttribArray(0)
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, None)
         glEnableVertexAttribArray(1)
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, ctypes_offset(3 * 4))
+        glEnableVertexAttribArray(2)
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, ctypes_offset(5 * 4))
         glBindVertexArray(0)
 
-        # Resolve a texture per submesh.
         cached_textures: dict[str, int] = {}
 
         def resolve_texture(mat_name: str | None) -> int:
@@ -217,7 +219,7 @@ class Model:
         ]
 
         print(
-            f"[model] {obj_p.name}: gpu_verts={len(gpu_verts) // 5} "
+            f"[model] {obj_p.name}: gpu_verts={len(gpu_verts) // 8} "
             f"indices={len(all_indices)} submeshes={len(submeshes)} "
             f"materials={[s.material_name for s in submeshes]}"
         )
@@ -230,7 +232,6 @@ def draw_model(model: Model) -> None:
     glActiveTexture(GL_TEXTURE0)
     for sub in model.submeshes:
         glBindTexture(GL_TEXTURE_2D, sub.diffuse_tex)
-        # Index offset is in *bytes* for glDrawElements.
         glDrawElements(
             GL_TRIANGLES,
             sub.index_count,

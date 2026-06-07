@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp /tmp/jf_textures/Textures/Jellyfish_Tris_Diffuse.png \"/Users/enzotmorente/Desktop/USP/2026.1/computacao grafica/projeto_3/assets/modelos/jelly_fish/Textures/Jellyfish_Tris_Diffuse.png\" && echo \"Jellyfish texture copied\")",
+      "Bash(unzip -o lamp/uploads_files_2390916_Textures.zip -d /tmp/lamp_textures)",
+      "Read(//tmp/**)",
+      "Bash(cp /tmp/lamp_textures/TexturesCom_Metal_SteelBrushed_1K_albedo.tif \"/Users/enzotmorente/Desktop/USP/2026.1/computacao grafica/projeto_3/assets/modelos/lamp/TexturesCom_Metal_SteelBrushed_1K_albedo.tif\" && echo \"Lamp texture copied\")",
+      "Bash(python -c \"import sys; sys.path.insert\\(0, 'src'\\); import ast; ast.parse\\(open\\('src/model.py'\\).read\\(\\)\\); ast.parse\\(open\\('src/scene.py'\\).read\\(\\)\\); ast.parse\\(open\\('src/main.py'\\).read\\(\\)\\); print\\('All syntax OK'\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('src/model.py'\\).read\\(\\)\\); ast.parse\\(open\\('src/scene.py'\\).read\\(\\)\\); ast.parse\\(open\\('src/main.py'\\).read\\(\\)\\); print\\('All syntax OK'\\)\")",
+      "Bash(python3 -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\)\\) for f in ['src/scene.py','src/main.py','src/model.py']]; print\\('All syntax OK'\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('src/scene.py'\\).read\\(\\)\\); print\\('scene.py OK'\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(awk '{if\\($2<minu||NR==1\\)minu=$2; if\\($2>maxu||NR==1\\)maxu=$2; if\\($3<minv||NR==1\\)minv=$3; if\\($3>maxv||NR==1\\)maxv=$3} END{print \"u:\",minu,\"->\",maxu,\"  v:\",minv,\"->\",maxv}')",
+      "Bash(sed -i '' 's|^mtllib Jellyfish_Low_Poly\\\\.mtl|mtllib jelly_fish.mtl|' jelly_fish/jelly_fish.obj)",
+      "Bash(sed -i '' 's|^mtllib Industrial_Ceiling_Lamp_\\\\.mtl|mtllib lamp.mtl|' lamp/lamp.obj)",
+      "Bash(awk '{if\\($3<miny||NR==1\\)miny=$3; if\\($3>maxy||NR==1\\)maxy=$3} END{print \"local Y: \"miny\" -> \"maxy}')",
+      "Bash(awk '{if\\($4<minz||NR==1\\)minz=$4; if\\($4>maxz||NR==1\\)maxz=$4} END{print \"local Z: \"minz\" -> \"maxz}')",
+      "Bash(python3 -c \"from PIL import Image; import numpy as np; im=np.asarray\\(Image.open\\('assets/texturas/interior/metal_brushed.jpg'\\).convert\\('RGBA'\\)\\); print\\('RGB mean:', im[...,:3].reshape\\(-1,3\\).mean\\(axis=0\\).round\\(1\\)\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('src/scene.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(grep -v \"^--$\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('src/main.py'\\).read\\(\\)\\); print\\('main.py OK'\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('src/model.py'\\).read\\(\\)\\); print\\('model.py OK'\\)\")"
+    ]
+  }
+}
