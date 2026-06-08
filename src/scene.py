@@ -271,6 +271,7 @@ class LightState:
     monitor_color: tuple = (0.2, 0.5, 1.0)
 
     # Globais ajustáveis por teclado
+    ambient_on:    bool  = True
     ambient:       float = 0.45
     diffuse_mult:  float = 1.0
     specular_mult: float = 1.0
@@ -753,7 +754,7 @@ class Scene:
             prog.set_int("uDiffuse", 0)
             prog.set_float("uUVTile", 1.0)
             prog.set_vec3("uCamPos", cx, cy, cz)
-            prog.set_float("uAmbientIntensity", self.lights.ambient)
+            prog.set_float("uAmbientIntensity", self.lights.ambient if self.lights.ambient_on else 0.0)
             prog.set_float("uDiffuseMult",      self.lights.diffuse_mult)
             prog.set_float("uSpecularMult",     self.lights.specular_mult)
 
