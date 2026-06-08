@@ -60,6 +60,7 @@ Testado em **macOS 25.3** (Apple Silicon) e **Ubuntu 22.04** com Python **3.12**
 | `1` | Toggle da luz da medusa (exterior) |
 | `2` | Toggle da lâmpada (interior) |
 | `3` | Toggle do monitor (interior) |
+| `4` | Toggle da luz direcional da água (exterior) |
 | `+` / `-` | Aumentar / diminuir intensidade **ambiente** (passo 0.05, range 0–1) |
 | `]` / `[` | Aumentar / diminuir componente **difusa** (passo 0.1, range 0–2) |
 | `R` / `T` | Aumentar / diminuir componente **especular** (passo 0.1, range 0–2) |
@@ -182,7 +183,7 @@ A iluminação é dupla:
 |---|---|---|
 | 1 | Objeto externo com translação = fonte de luz exterior que **só afeta o exterior** | Medusa (`jelly_fish.obj`) é movida pelas setas; sua posição vira `uLightPos` no `phong_ext`. O `phong_int` recebe a posição da medusa como `uLight3` mas só a aplica na face externa do casco (`gl_FrontFacing && uHullMode==1`) |
 | 2 | Dois objetos internos como fontes de luz de **cores diferentes** que **só afetam o interior** | Lâmpada (branco-quente) e monitor (azul) em `phong_int`; objetos exteriores usam `phong_ext` que não declara essas luzes |
-| 3 | Toggle independente de cada luz por teclado | `1` = medusa, `2` = lâmpada, `3` = monitor; cada um altera um campo de `LightState` que é enviado como `int` uniform (`uLightOn`) ao shader |
+| 3 | Toggle independente de cada luz por teclado | `1` = medusa, `2` = lâmpada, `3` = monitor, `4` = luz direcional da água; cada um altera um campo de `LightState` enviado como `int` uniform (`uLightOn`/`uWaterOn`) ao shader |
 | 4 | Incrementar/decrementar luz ambiente | `+`/`-`: `lights.ambient` ±0.05, clampado em [0, 1], enviado como `uAmbientIntensity` |
 | 5 | Incrementar/decrementar reflexão difusa | `]`/`[`: `lights.diffuse_mult` ±0.1, clampado em [0, 2], enviado como `uDiffuseMult` |
 | 6 | Incrementar/decrementar reflexão especular | `R`/`T`: `lights.specular_mult` ±0.1, clampado em [0, 2], enviado como `uSpecularMult` |

@@ -4,7 +4,7 @@ Controles:
   WASD + Space/Shift  — movimento da câmera
   Mouse               — look-around
   Arrows              — mover a medusa (fonte de luz exterior)
-  1/2/3               — toggle luzes (medusa / lampada / monitor)
+  1/2/3/4             — toggle luzes (medusa / lampada / monitor / luz da agua)
   +/-                 — aumentar/diminuir intensidade ambiente
   [ / ]               — diminuir/aumentar componente difusa
   R / T               — aumentar/diminuir componente especular
@@ -99,6 +99,9 @@ class App:
         elif key == glfw.KEY_3:
             self.scene.lights.monitor_on = not self.scene.lights.monitor_on
             print(f"[input] luz monitor: {'ON' if self.scene.lights.monitor_on else 'OFF'}")
+        elif key == glfw.KEY_4:
+            self.scene.lights.water_on = not self.scene.lights.water_on
+            print(f"[input] luz da agua: {'ON' if self.scene.lights.water_on else 'OFF'}")
 
         # Intensidade ambiente
         elif key in (glfw.KEY_EQUAL, glfw.KEY_KP_ADD):
@@ -199,7 +202,7 @@ def main() -> int:
     RESET = "\033[0m"
     controls = (
         "[main] controls: WASD + Space/Shift, mouse look, "
-        "Arrows=medusa, 1/2/3=toggle luzes, +/-=ambient, [/]=difuso, R/T=especular, Esc"
+        "Arrows=medusa, 1/2/3/4=toggle luzes, +/-=ambient, [/]=difuso, R/T=especular, Esc"
     )
     print("[main] starting submarine scene (Projeto 3: Iluminação Phong)")
     print(f"{GREEN}{controls}{RESET}")
