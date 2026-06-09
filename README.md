@@ -3,7 +3,9 @@
 **SCC0250, Computação Gráfica · 2026.1 · ICMC-USP**
 
 Feito por:
+
 **Enzo Tonon Morente - 14568476**
+
 **Cauê Paiva Lira - 14675416**
 
 ---
@@ -43,9 +45,47 @@ python src/main.py
 
 Testado em **macOS 25.3** (Apple Silicon) e **Ubuntu 22.04** com Python **3.12**.
 
-> **Importante:** usar Python 3.12 especificamente. O `assimp_py` (usado no pipeline de build offline em `tools/`) ainda não tem *wheel* para 3.13+. O runtime (`src/`) só depende de PyOpenGL, GLFW, numpy e Pillow — mas manter 3.12 evita surpresas.
->
-> Para instalar outra versão do Python sem afetar o sistema, use o [pyenv](https://realpython.com/intro-to-pyenv/).
+### 2.1 Versão do Python (importante)
+
+**Use Python 3.12.** O projeto **não instala em Python 3.13+/3.14**, e a causa é uma única dependência:
+
+- O `requirements.txt` inclui o **`assimp_py`**, usado apenas pelo pipeline de build offline em `tools/` (conversão `.fbx`/`.blend` → `.obj`).
+- O `assimp_py` **só publica *wheel* até o Python 3.12**. Em 3.13+/3.14 não há *wheel*, então o `pip` tenta **compilar a partir do código-fonte** (via CMake) e a build **falha**:
+
+  ```
+  CMake Error: The source directory ... does not appear to contain CMakeLists.txt.
+  ERROR: Failed building wheel for assimp-py
+  ```
+
+- Como o `pip install -r requirements.txt` aborta nesse erro, **nenhuma** dependência é instalada e o projeto não roda.
+
+> **Observação:** o *runtime* em `src/` **não importa `assimp_py`** — ele só depende de **PyOpenGL**, **GLFW**, **numpy** e **Pillow** (todos com *wheel* para versões novas do Python). O `assimp_py` é necessário apenas para reconstruir assets em `tools/`. Ou seja, o 3.14 falha por causa de uma lib que o programa nem usa para executar.
+
+### 2.2 Fixando a versão com pyenv (recomendado)
+
+Para instalar o Python 3.12 sem mexer no Python do sistema, use o [pyenv](https://github.com/pyenv/pyenv),  pode usar essa [intro para o pyenv](https://realpython.com/intro-to-pyenv/). O repositório **já inclui um arquivo `.python-version` com `3.12`**, que é o *pin local* do pyenv: ao entrar nesta pasta, o pyenv seleciona o 3.12 automaticamente.
+
+```bash
+# 1. Instalar o Python 3.12 (uma única vez na máquina)
+pyenv install 3.12
+
+# 2. (Opcional) Confirmar que o pin local já aponta para 3.12 dentro da pasta:
+#    o arquivo .python-version do repo cuida disso. Para (re)criar manualmente:
+pyenv local 3.12
+python --version          # deve mostrar Python 3.12.x
+
+# 3. Criar a venv já com o 3.12 selecionado pelo pyenv e instalar tudo
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python src/main.py
+```
+
+> **Atalho (sem `assimp_py`):** como o runtime não precisa do `assimp_py`, dá para rodar em qualquer Python ≥ 3.12 instalando só as 4 dependências de execução:
+> ```bash
+> pip install "PyOpenGL>=3.1.7" "glfw>=2.7.0" "numpy>=1.26" "Pillow>=10.0"
+> python src/main.py
+> ```
 
 ---
 
